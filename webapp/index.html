@@ -13,13 +13,13 @@
 <head>
   <meta charset="utf-8">
   <title>JS Bin</title>
-  <script type="text/javascript" src="/js/Chart.js"></script>
-  <script type="text/javascript" src="/js/json2.js"></script>
+  <script type="text/javascript" src="js/Chart.js"></script>
+  <script type="text/javascript" src="js/json2.js"></script>
   <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
   <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
   <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
-  <script type="text/javascript" src="/js/jolokia-min.js"></script>
-  <script type="text/javascript" src="/js/jolokia-simple-min.js"></script>
+  <script type="text/javascript" src="js/jolokia-min.js"></script>
+  <script type="text/javascript" src="js/jolokia-simple-min.js"></script>
 </head>
 
 <body>
@@ -180,6 +180,19 @@
     });
   }
 
+  function getContextPath() {
+      var contextPath = "";
+      if(location.pathname.length > 1) {
+          contextPath = location.pathname;
+
+          if(contextPath[contextPath.length - 1] == "/") {
+              contextPath = contextPath.slice(0, -1);
+          }
+      }
+
+      return contextPath;
+  }
+
   var beginTime = Math.round(new Date().getTime() / 1000);
   var dataNum = 30;
   var pollIntervalMs = 1000;
@@ -194,8 +207,7 @@
     {name: "kmf.services:type=consume-service,name=*", attribute: "records-delay-ms-max"},
   ];
 
-  var ip = location.host.split(':')[0];
-  var j4p = new Jolokia({url: "http://" + ip + ":8778/jolokia"});
+  var j4p = new Jolokia({url: location.protocol + "//" + location.host + getContextPath() + "/jolokia"});
   var charts = createMetricsCharts(monitoredMbeans);
   var cells = createMetricsTable(monitoredMbeans);
   createSearchBox();

@@ -10,8 +10,13 @@
 package com.linkedin.kmf.services;
 
 import com.linkedin.kmf.services.configs.JettyServiceConfig;
+import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.mortbay.servlet.ProxyServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,11 +35,22 @@ public class JettyService implements Service {
     JettyServiceConfig config = new JettyServiceConfig(props);
     _port = config.getInt(JettyServiceConfig.PORT_CONFIG);
     _jettyServer = new Server(_port);
-    ResourceHandler resourceHandler = new ResourceHandler();
-    resourceHandler.setDirectoriesListed(true);
-    resourceHandler.setWelcomeFiles(new String[]{"index.html"});
-    resourceHandler.setResourceBase("webapp");
-    _jettyServer.setHandler(resourceHandler);
+
+    //Handle web content
+    ResourceHandler webappResourceHandler = new ResourceHandler();
+    webappResourceHandler.setDirectoriesListed(true);
+    webappResourceHandler.setWelcomeFiles(new String[]{"index.html"});
+    webappResourceHandler.setResourceBase("webapp");
+
+    //forward Jolokia backend calls
+    ServletContextHandler jolokiaContext = new ServletContextHandler();
+    ServletHolder jolokiaServlet = jolokiaContext.addServlet(ProxyServlet.Transparent.class, "/jolokia/*");
+    jolokiaServlet.setInitParameter("ProxyTo", "http://localhost:8778/jolokia");
+
+    HandlerList handlers = new HandlerList();
+    handlers.setHandlers(new Handler[] {webappResourceHandler, jolokiaContext});
+
+    _jettyServer.setHandler(handlers);
   }
 
   public synchronized void start() {
