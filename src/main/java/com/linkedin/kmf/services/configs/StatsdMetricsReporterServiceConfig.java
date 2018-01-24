@@ -8,37 +8,17 @@
  * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *
  *
- * In order to enable the StatsD metrics export, add the following section to kafka-monitor.properties file
+ * In order to enable the StatsD metrics export, add the following section to kafka-monitor.conf file
  *
- ==========================================================================================
-  "statsd-service": {
-       "class.name": "com.linkedin.kmf.services.StatsdMetricsReporterService",
-       "report.statsd.host": "localhost",
-       "report.statsd.port": "8125",
-       "report.statsd.prefix": "kafka-monitor",
-       "report.interval.sec": 1,
-       "report.metrics.list": [
-       "kmf.services:type=produce-service,name=*:produce-availability-avg",
-       "kmf.services:type=consume-service,name=*:consume-availability-avg",
-       "kmf.services:type=produce-service,name=*:records-produced-total",
-       "kmf.services:type=consume-service,name=*:records-consumed-total",
-       "kmf.services:type=consume-service,name=*:records-lost-total",
-       "kmf.services:type=consume-service,name=*:records-duplicated-total",
-       "kmf.services:type=consume-service,name=*:records-delay-ms-avg",
-       "kmf.services:type=produce-service,name=*:records-produced-rate",
-       "kmf.services:type=produce-service,name=*:produce-error-rate",
-       "kmf.services:type=consume-service,name=*:consume-error-rate"
-     ]
-   }
- ==========================================================================================
  */
 package com.linkedin.kmf.services.configs;
 
+import com.linkedin.kmf.common.Utils;
+import com.typesafe.config.Config;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 
 import java.util.Arrays;
-import java.util.Map;
 
 public class StatsdMetricsReporterServiceConfig extends AbstractConfig {
   private static final ConfigDef CONFIG;
@@ -87,7 +67,7 @@ public class StatsdMetricsReporterServiceConfig extends AbstractConfig {
 
   }
 
-  public StatsdMetricsReporterServiceConfig(Map<?, ?> props) {
-    super(CONFIG, props);
+  public StatsdMetricsReporterServiceConfig(Config config) {
+    super(CONFIG, Utils.configToMapProperties(config));
   }
 }

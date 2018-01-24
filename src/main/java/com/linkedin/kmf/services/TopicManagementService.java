@@ -12,8 +12,11 @@ package com.linkedin.kmf.services;
 
 import com.linkedin.kmf.services.configs.MultiClusterTopicManagementServiceConfig;
 import com.linkedin.kmf.services.configs.TopicManagementServiceConfig;
-import java.util.HashMap;
-import java.util.Map;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigRenderOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -21,40 +24,37 @@ import java.util.Map;
  * leadership of partitions of the monitor topic is distributed evenly across brokers in the cluster
  */
 public class TopicManagementService implements Service {
+  private static final Logger LOG = LoggerFactory.getLogger(TopicManagementService.class);
   private final MultiClusterTopicManagementService _multiClusterTopicManagementService;
 
-  public TopicManagementService(Map<String, Object> props, String serviceName) throws Exception {
-    Map<String, Object> serviceProps = createMultiClusterTopicManagementServiceProps(props, serviceName);
-    _multiClusterTopicManagementService = new MultiClusterTopicManagementService(serviceProps, serviceName);
+  public TopicManagementService(Config serviceConfig, String serviceName) throws Exception {
+    Config config = createMultiClusterTopicManagementServiceProps(serviceConfig, serviceName);
+    LOG.info("Loading TopicManagementService with config: \n" + config.root().render(ConfigRenderOptions.defaults().setOriginComments(false).setComments(false).setJson(false)));
+
+    _multiClusterTopicManagementService = new MultiClusterTopicManagementService(config, serviceName);
   }
 
   /**
-   * @param props a map of key/value pair used for configuring TopicManagementService
+   * @param config a Config of key/value pair used for configuring TopicManagementService
    * @param serviceName service name
    * @return a map of the following format:
    *
    * {
-   *   "topic.management.props.per.cluster" : {
+   *   topic.management.props.per.cluster : {
    *     // all key/value pair from props except the one with key "topic"
    *   }
-   *   "topic": topic
+   *   topic: topic
    * }
    */
-  private Map<String, Object> createMultiClusterTopicManagementServiceProps(Map<String, Object> props, String serviceName) {
-    Map<String, Object> propsWithoutTopic = new HashMap<>();
-    for (Map.Entry<String, Object> entry: props.entrySet()) {
-      if (!entry.getKey().equals(TopicManagementServiceConfig.TOPIC_CONFIG)) {
-        propsWithoutTopic.put(entry.getKey(), entry.getValue());
-      }
-    }
-    Map<String, Object> configPerCluster = new HashMap<>();
-    configPerCluster.put(serviceName, propsWithoutTopic);
-    Map<String, Object> serviceProps = new HashMap<>();
-    serviceProps.put(MultiClusterTopicManagementServiceConfig.PROPS_PER_CLUSTER_CONFIG, configPerCluster);
-    serviceProps.put(MultiClusterTopicManagementServiceConfig.TOPIC_CONFIG, props.get(TopicManagementServiceConfig.TOPIC_CONFIG));
-    if (props.containsKey(MultiClusterTopicManagementServiceConfig.REBALANCE_INTERVAL_MS_CONFIG))
-      serviceProps.put(MultiClusterTopicManagementServiceConfig.REBALANCE_INTERVAL_MS_CONFIG, props.get(MultiClusterTopicManagementServiceConfig.REBALANCE_INTERVAL_MS_CONFIG));
-    return serviceProps;
+  private Config createMultiClusterTopicManagementServiceProps(Config config, String serviceName) {
+    Config propsWithoutTopic = config.withoutPath(TopicManagementServiceConfig.TOPIC_CONFIG);
+    Config configPerCluster = ConfigFactory.empty().withValue(serviceName, propsWithoutTopic.root());
+    Config serviceConfig = ConfigFactory.empty()
+            .withValue(MultiClusterTopicManagementServiceConfig.PROPS_PER_CLUSTER_CONFIG, configPerCluster.root())
+            .withValue(MultiClusterTopicManagementServiceConfig.TOPIC_CONFIG, config.getValue(TopicManagementServiceConfig.TOPIC_CONFIG));
+    if (config.hasPath(MultiClusterTopicManagementServiceConfig.REBALANCE_INTERVAL_MS_CONFIG))
+      serviceConfig = serviceConfig.withValue(MultiClusterTopicManagementServiceConfig.REBALANCE_INTERVAL_MS_CONFIG, config.getValue(MultiClusterTopicManagementServiceConfig.REBALANCE_INTERVAL_MS_CONFIG));
+    return serviceConfig;
   }
 
   @Override

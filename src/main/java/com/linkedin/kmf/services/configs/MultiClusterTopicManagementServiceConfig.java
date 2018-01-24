@@ -9,7 +9,8 @@
  */
 package com.linkedin.kmf.services.configs;
 
-import java.util.Map;
+import com.linkedin.kmf.common.Utils;
+import com.typesafe.config.Config;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 
@@ -22,7 +23,7 @@ public class MultiClusterTopicManagementServiceConfig extends AbstractConfig {
   public static final String TOPIC_CONFIG = CommonServiceConfig.TOPIC_CONFIG;
   public static final String TOPIC_DOC = CommonServiceConfig.TOPIC_DOC;
 
-  public static final String PROPS_PER_CLUSTER_CONFIG = "topic.management.props.per.cluster";
+  public static final String PROPS_PER_CLUSTER_CONFIG = "topic-management.props.per.cluster";
   public static final String PROPS_PER_CLUSTER_DOC = "A map from cluster name to a TopicManagementService config for each monitored cluster";
 
   public static final String REBALANCE_INTERVAL_MS_CONFIG = "topic-management.rebalance.interval.ms";
@@ -43,7 +44,7 @@ public class MultiClusterTopicManagementServiceConfig extends AbstractConfig {
               REBALANCE_INTERVAL_MS_DOC);
   }
 
-  public MultiClusterTopicManagementServiceConfig(Map<?, ?> props) {
-    super(CONFIG, props);
+  public MultiClusterTopicManagementServiceConfig(Config config) {
+    super(CONFIG, Utils.configToMapProperties(config));
   }
 }

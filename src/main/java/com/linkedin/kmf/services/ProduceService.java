@@ -15,20 +15,7 @@ import com.linkedin.kmf.producer.BaseProducerRecord;
 import com.linkedin.kmf.producer.KMBaseProducer;
 import com.linkedin.kmf.producer.NewProducer;
 import com.linkedin.kmf.services.configs.ProduceServiceConfig;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import com.typesafe.config.Config;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.MetricName;
@@ -44,6 +31,21 @@ import org.apache.kafka.common.metrics.stats.Total;
 import org.apache.kafka.common.utils.SystemTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ProduceService implements Service {
   private static final Logger LOG = LoggerFactory.getLogger(ProduceService.class);
@@ -74,10 +76,11 @@ public class ProduceService implements Service {
   private final String _producerClassName;
   private final int _threadsNum;
   private final String _zkConnect;
+  private final boolean _treatZeroThroughputAsUnavailable;
 
-  public ProduceService(Map<String, Object> props, String name) throws Exception {
+  public ProduceService(Config serviceConfig, String name) throws Exception {
     _name = name;
-    ProduceServiceConfig config = new ProduceServiceConfig(props);
+    ProduceServiceConfig config = new ProduceServiceConfig(serviceConfig);
     _zkConnect = config.getString(ProduceServiceConfig.ZOOKEEPER_CONNECT_CONFIG);
     _brokerList = config.getString(ProduceServiceConfig.BOOTSTRAP_SERVERS_CONFIG);
     String producerClass = config.getString(ProduceServiceConfig.PRODUCER_CLASS_CONFIG);
@@ -89,19 +92,18 @@ public class ProduceService implements Service {
     _produceDelayMs = config.getInt(ProduceServiceConfig.PRODUCE_RECORD_DELAY_MS_CONFIG);
     _recordSize = config.getInt(ProduceServiceConfig.PRODUCE_RECORD_SIZE_BYTE_CONFIG);
     _sync = config.getBoolean(ProduceServiceConfig.PRODUCE_SYNC_CONFIG);
+    _treatZeroThroughputAsUnavailable = config.getBoolean(ProduceServiceConfig.PRODUCER_TREAT_ZERO_THROUGHPUT_AS_UNAVAILABLE_CONFIG);
     _partitionNum = new AtomicInteger(0);
     _running = new AtomicBoolean(false);
     _nextIndexPerPartition = new ConcurrentHashMap<>();
-    _producerPropsOverride = props.containsKey(ProduceServiceConfig.PRODUCER_PROPS_CONFIG)
-      ? (Map) props.get(ProduceServiceConfig.PRODUCER_PROPS_CONFIG) : new HashMap<>();
+    _producerPropsOverride = serviceConfig.hasPath(ProduceServiceConfig.PRODUCER_PROPS_CONFIG)
+      ? Utils.configToMapProperties(serviceConfig.getConfig(ProduceServiceConfig.PRODUCER_PROPS_CONFIG)) : new HashMap();
 
     for (String property: NONOVERRIDABLE_PROPERTIES) {
       if (_producerPropsOverride.containsKey(property)) {
         throw new ConfigException("Override must not contain " + property + " config.");
       }
     }
-
-    _partitionNum.set(Utils.getPartitionNumForTopic(_zkConnect, _topic));
 
     if (producerClass.equals(NewProducer.class.getCanonicalName()) || producerClass.equals(NewProducer.class.getSimpleName())) {
       _producerClassName = NewProducer.class.getCanonicalName();
@@ -130,7 +132,7 @@ public class ProduceService implements Service {
     // Assign default config. This has the lowest priority.
     producerProps.put(ProducerConfig.ACKS_CONFIG, "-1");
     producerProps.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, "20000");
-    producerProps.put(ProducerConfig.RETRIES_CONFIG, 3);
+    producerProps.put(ProducerConfig.RETRIES_CONFIG, "3");
     producerProps.put(ProducerConfig.BLOCK_ON_BUFFER_FULL_CONFIG, "true");
     producerProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1");
     producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer");
@@ -148,15 +150,15 @@ public class ProduceService implements Service {
   @Override
   public synchronized void start() {
     if (_running.compareAndSet(false, true)) {
-      initializeStateForPartitions();
+      int partitionNum = Utils.getPartitionNumForTopic(_zkConnect, _topic);
+      initializeStateForPartitions(partitionNum);
       _handleNewPartitionsExecutor.scheduleWithFixedDelay(new NewPartitionHandler(), 1000, 30000, TimeUnit.MILLISECONDS);
       LOG.info("{}/ProduceService started", _name);
     }
   }
 
-  private void initializeStateForPartitions() {
-    Map<Integer, String> keyMapping = generateKeyMappings();
-    int partitionNum = _partitionNum.get();
+  private void initializeStateForPartitions(int partitionNum) {
+    Map<Integer, String> keyMapping = generateKeyMappings(partitionNum);
     for (int partition = 0; partition < partitionNum; partition++) {
       String key = keyMapping.get(partition);
       //This is what preserves sequence numbers across restarts
@@ -166,10 +168,10 @@ public class ProduceService implements Service {
       }
       _produceExecutor.scheduleWithFixedDelay(new ProduceRunnable(partition, key), _produceDelayMs, _produceDelayMs, TimeUnit.MILLISECONDS);
     }
+    _partitionNum.set(partitionNum);
   }
 
-  private Map<Integer, String> generateKeyMappings() {
-    int partitionNum = _partitionNum.get();
+  private Map<Integer, String> generateKeyMappings(int partitionNum) {
     HashMap<Integer, String> keyMapping = new HashMap<>();
 
     int nextInt = 0;
@@ -250,6 +252,14 @@ public class ProduceService implements Service {
               // If there is either succeeded or failed produce to a partition, consider its availability as 0.
               if (recordsProduced + produceError > 0) {
                 availabilitySum += recordsProduced / (recordsProduced + produceError);
+              } else if (!_treatZeroThroughputAsUnavailable) {
+                // If user configures treatZeroThroughputAsUnavailable to be false, a partition's availability
+                // is 1.0 as long as there is no exception thrown from producer.
+                // This allows kafka admin to exactly monitor the availability experienced by Kafka users which
+                // will block and retry for a certain amount of time based on its configuration (e.g. retries, retry.backoff.ms).
+                // Note that if it takes a long time for messages to be retries and sent, the latency in the ConsumeService
+                // will increase and it will reduce ConsumeAvailability if the latency exceeds consume.latency.sla.ms
+                availabilitySum += 1.0;
               }
             }
             // Assign equal weight to per-partition availability when calculating overall availability
@@ -315,11 +325,13 @@ public class ProduceService implements Service {
   private class NewPartitionHandler implements Runnable {
 
     public void run() {
-      int currentPartitionCount = Utils.getPartitionNumForTopic(_zkConnect, _topic);
-      if (currentPartitionCount <= 0) {
+      LOG.debug("{}/ProduceService check partition number for topic {}.", _name, _topic);
+
+      int currentPartitionNum = Utils.getPartitionNumForTopic(_zkConnect, _topic);
+      if (currentPartitionNum <= 0) {
         LOG.info("{}/ProduceService topic {} does not exist.", _name, _topic);
         return;
-      } else if (currentPartitionCount == _partitionNum.get()) {
+      } else if (currentPartitionNum == _partitionNum.get()) {
         return;
       }
       LOG.info("{}/ProduceService detected new partitions of topic {}", _name, _topic);
@@ -331,7 +343,6 @@ public class ProduceService implements Service {
         throw new IllegalStateException(e);
       }
       _producer.close();
-      _partitionNum.set(currentPartitionCount);
       try {
         initializeProducer();
       } catch (Exception e) {
@@ -339,7 +350,7 @@ public class ProduceService implements Service {
         throw new IllegalStateException(e);
       }
       _produceExecutor = Executors.newScheduledThreadPool(_threadsNum);
-      initializeStateForPartitions();
+      initializeStateForPartitions(currentPartitionNum);
       LOG.info("New partitions added to monitoring.");
     }
   }

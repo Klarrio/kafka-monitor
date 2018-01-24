@@ -15,27 +15,18 @@ import com.linkedin.kmf.services.configs.CommonServiceConfig;
 import com.linkedin.kmf.services.configs.MultiClusterTopicManagementServiceConfig;
 import com.linkedin.kmf.services.configs.TopicManagementServiceConfig;
 import com.linkedin.kmf.topicfactory.TopicFactory;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigValue;
+import com.typesafe.config.ConfigValueFactory;
 import kafka.admin.AdminOperationException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import kafka.admin.AdminUtils;
 import kafka.admin.BrokerMetadata;
 import kafka.admin.PreferredReplicaLeaderElectionCommand;
 import kafka.admin.RackAwareMode;
 import kafka.cluster.Broker;
 import kafka.common.TopicAndPartition;
+import kafka.server.ConfigType;
 import kafka.utils.ZkUtils;
 import org.I0Itec.zkclient.exception.ZkNodeExistsException;
 import org.apache.kafka.common.Node;
@@ -45,6 +36,21 @@ import org.apache.kafka.common.security.JaasUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.Seq;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.linkedin.kmf.common.Utils.ZK_CONNECTION_TIMEOUT_MS;
 import static com.linkedin.kmf.common.Utils.ZK_SESSION_TIMEOUT_MS;
@@ -72,13 +78,13 @@ public class MultiClusterTopicManagementService implements Service {
   private final int _scheduleIntervalMs;
   private final ScheduledExecutorService _executor;
 
-  public MultiClusterTopicManagementService(Map<String, Object> props, String serviceName) throws Exception {
+  public MultiClusterTopicManagementService(Config serviceConfig, String serviceName) throws Exception {
     _serviceName = serviceName;
-    MultiClusterTopicManagementServiceConfig config = new MultiClusterTopicManagementServiceConfig(props);
+    MultiClusterTopicManagementServiceConfig config = new MultiClusterTopicManagementServiceConfig(serviceConfig);
     String topic = config.getString(CommonServiceConfig.TOPIC_CONFIG);
-    Map<String, Map> propsByCluster = props.containsKey(MultiClusterTopicManagementServiceConfig.PROPS_PER_CLUSTER_CONFIG)
-        ? (Map) props.get(MultiClusterTopicManagementServiceConfig.PROPS_PER_CLUSTER_CONFIG) : new HashMap<>();
-    _topicManagementByCluster = initializeTopicManagementHelper(propsByCluster, topic);
+    Config configByCluster = serviceConfig.hasPath(MultiClusterTopicManagementServiceConfig.PROPS_PER_CLUSTER_CONFIG)
+        ? serviceConfig.getConfig(MultiClusterTopicManagementServiceConfig.PROPS_PER_CLUSTER_CONFIG) : ConfigFactory.empty();
+    _topicManagementByCluster = initializeTopicManagementHelper(configByCluster, topic);
     _scheduleIntervalMs = config.getInt(MultiClusterTopicManagementServiceConfig.REBALANCE_INTERVAL_MS_CONFIG);
     _executor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
       @Override
@@ -88,16 +94,16 @@ public class MultiClusterTopicManagementService implements Service {
     });
   }
 
-  private Map<String, TopicManagementHelper> initializeTopicManagementHelper(Map<String, Map> propsByCluster, String topic) throws Exception {
+  private Map<String, TopicManagementHelper> initializeTopicManagementHelper(Config configByCluster, String topic) throws Exception {
     Map<String, TopicManagementHelper> topicManagementByCluster = new HashMap<>();
-    for (Map.Entry<String, Map> entry: propsByCluster.entrySet()) {
+    for (Map.Entry<String, ConfigValue> entry: configByCluster.root().entrySet()) {
       String clusterName = entry.getKey();
-      Map serviceProps = entry.getValue();
-      if (serviceProps.containsKey(MultiClusterTopicManagementServiceConfig.TOPIC_CONFIG))
+      Config serviceConfig = configByCluster.getConfig(clusterName);
+      if (serviceConfig.hasPath(MultiClusterTopicManagementServiceConfig.TOPIC_CONFIG))
         throw new ConfigException("The raw per-cluster config for MultiClusterTopicManagementService must not contain " +
             MultiClusterTopicManagementServiceConfig.TOPIC_CONFIG);
-      serviceProps.put(MultiClusterTopicManagementServiceConfig.TOPIC_CONFIG, topic);
-      topicManagementByCluster.put(clusterName, new TopicManagementHelper(serviceProps));
+      serviceConfig = serviceConfig.withValue(MultiClusterTopicManagementServiceConfig.TOPIC_CONFIG, ConfigValueFactory.fromAnyRef(topic));
+      topicManagementByCluster.put(clusterName, new TopicManagementHelper(serviceConfig));
     }
     return topicManagementByCluster;
   }
@@ -184,8 +190,8 @@ public class MultiClusterTopicManagementService implements Service {
     private final TopicFactory _topicFactory;
     private final Properties _topicProperties;
 
-    TopicManagementHelper(Map<String, Object> props) throws Exception {
-      TopicManagementServiceConfig config = new TopicManagementServiceConfig(props);
+    TopicManagementHelper(Config helperConfig) throws Exception {
+      TopicManagementServiceConfig config = new TopicManagementServiceConfig(helperConfig);
       _topicCreationEnabled = config.getBoolean(TopicManagementServiceConfig.TOPIC_CREATION_ENABLED_CONFIG);
       _topic = config.getString(TopicManagementServiceConfig.TOPIC_CONFIG);
       _zkConnect = config.getString(TopicManagementServiceConfig.ZOOKEEPER_CONNECT_CONFIG);
@@ -193,17 +199,19 @@ public class MultiClusterTopicManagementService implements Service {
       _minPartitionsToBrokersRatio = config.getDouble(TopicManagementServiceConfig.PARTITIONS_TO_BROKERS_RATIO_CONFIG);
       _minPartitionNum = config.getInt(TopicManagementServiceConfig.MIN_PARTITION_NUM_CONFIG);
       String topicFactoryClassName = config.getString(TopicManagementServiceConfig.TOPIC_FACTORY_CLASS_CONFIG);
-      _topicProperties = new Properties();
-      if (props.containsKey(TopicManagementServiceConfig.TOPIC_PROPS_CONFIG))
-        _topicProperties.putAll((Map) props.get(TopicManagementServiceConfig.TOPIC_PROPS_CONFIG));
 
-      Map topicFactoryConfig = props.containsKey(TopicManagementServiceConfig.TOPIC_FACTORY_PROPS_CONFIG) ?
-          (Map) props.get(TopicManagementServiceConfig.TOPIC_FACTORY_PROPS_CONFIG) : new HashMap();
-      _topicFactory = (TopicFactory) Class.forName(topicFactoryClassName).getConstructor(Map.class).newInstance(topicFactoryConfig);
+      _topicProperties = new Properties();
+      if (helperConfig.hasPath(TopicManagementServiceConfig.TOPIC_PROPS_CONFIG))
+        _topicProperties.putAll(Utils.configToMapProperties(helperConfig.getConfig(TopicManagementServiceConfig.TOPIC_PROPS_CONFIG)));
+
+      Config topicFactoryConfig = helperConfig.hasPath(TopicManagementServiceConfig.TOPIC_FACTORY_PROPS_CONFIG) ?
+          helperConfig.getConfig(TopicManagementServiceConfig.TOPIC_FACTORY_PROPS_CONFIG) : ConfigFactory.empty();
+      _topicFactory = (TopicFactory) Class.forName(topicFactoryClassName).getConstructor(Config.class).newInstance(topicFactoryConfig);
     }
 
     void maybeCreateTopic() throws Exception {
       if (_topicCreationEnabled) {
+        LOG.info("creating topic '" + _topic + "' if it does not exist yet");
         _topicFactory.createTopicIfNotExist(_zkConnect, _topic, _replicationFactor, _minPartitionsToBrokersRatio, _topicProperties);
       }
     }
@@ -238,22 +246,37 @@ public class MultiClusterTopicManagementService implements Service {
           throw new IllegalStateException("Topic " + _topic + " does not exist in cluster " + _zkConnect);
 
         int currentReplicationFactor = getReplicationFactor(partitionInfoList);
+        int expectedReplicationFactor = Math.max(currentReplicationFactor, _replicationFactor);
 
         if (_replicationFactor < currentReplicationFactor)
-          throw new RuntimeException(String.format("Configured replication factor %d "
-                  + "is smaller than the current replication factor %d of the topic %s in cluster %s",
-              _replicationFactor, currentReplicationFactor, _topic, _zkConnect));
+          LOG.debug("Configured replication factor {} is smaller than the current replication factor {} of the topic {} in cluster {}",
+              _replicationFactor, currentReplicationFactor, _topic, _zkConnect);
 
-        if (_replicationFactor > currentReplicationFactor && zkUtils.getPartitionsBeingReassigned().isEmpty()) {
-          LOG.info("MultiClusterTopicManagementService will increase the replication factor of the topic {} in cluster {}", _topic, _zkConnect);
-          reassignPartitions(zkUtils, brokers, _topic, partitionInfoList.size(), _replicationFactor);
+        if (expectedReplicationFactor > currentReplicationFactor && zkUtils.getPartitionsBeingReassigned().isEmpty()) {
+          LOG.info("MultiClusterTopicManagementService will increase the replication factor of the topic {} in cluster {}"
+              + "from {} to {}", _topic, _zkConnect, currentReplicationFactor, expectedReplicationFactor);
+          reassignPartitions(zkUtils, brokers, _topic, partitionInfoList.size(), expectedReplicationFactor);
+        }
+
+        // Update the properties of the monitor topic if any config is different from the user-specified config
+        Properties currentProperties = AdminUtils.fetchEntityConfig(zkUtils, ConfigType.Topic(), _topic);
+        Properties expectedProperties = new Properties();
+        for (Object key: currentProperties.keySet())
+          expectedProperties.put(key, currentProperties.get(key));
+        for (Object key: _topicProperties.keySet())
+          expectedProperties.put(key, _topicProperties.get(key));
+
+        if (!currentProperties.equals(expectedProperties)) {
+          LOG.info("MultiClusterTopicManagementService will overwrite properties of the topic {} "
+              + "in cluster {} from {} to {}.", _topic, _zkConnect, currentProperties, expectedProperties);
+          AdminUtils.changeTopicConfig(zkUtils, _topic, expectedProperties);
         }
 
         if (partitionInfoList.size() >= brokers.size() &&
             someBrokerNotPreferredLeader(partitionInfoList, brokers) &&
             zkUtils.getPartitionsBeingReassigned().isEmpty()) {
           LOG.info("MultiClusterTopicManagementService will reassign partitions of the topic {} in cluster {}", _topic, _zkConnect);
-          reassignPartitions(zkUtils, brokers, _topic, partitionInfoList.size(), _replicationFactor);
+          reassignPartitions(zkUtils, brokers, _topic, partitionInfoList.size(), expectedReplicationFactor);
         }
 
         if (partitionInfoList.size() >= brokers.size() &&
@@ -279,10 +302,19 @@ public class MultiClusterTopicManagementService implements Service {
       for (Broker broker : brokers) {
         brokersMetadata.$plus$eq(new BrokerMetadata(broker.id(), broker.rack()));
       }
-      scala.collection.Map<Object, Seq<Object>> partitionToReplicas =
+      scala.collection.Map<Object, Seq<Object>> newAssignment =
           AdminUtils.assignReplicasToBrokers(brokersMetadata, partitionCount, replicationFactor, 0, 0);
-      String jsonReassignmentData = formatAsReassignmentJson(topic, partitionToReplicas);
-      zkUtils.createPersistentPath(ZkUtils.ReassignPartitionsPath(), jsonReassignmentData, zkUtils.DefaultAcls());
+
+      scala.collection.mutable.ArrayBuffer<String> topicList = new scala.collection.mutable.ArrayBuffer<>();
+      topicList.$plus$eq(topic);
+      scala.collection.Map<Object, scala.collection.Seq<Object>> currentAssignment = zkUtils.getPartitionAssignmentForTopics(topicList).apply(topic);
+      String currentAssignmentJson = formatAsReassignmentJson(topic, currentAssignment);
+      String newAssignmentJson = formatAsReassignmentJson(topic, newAssignment);
+
+      LOG.info("Reassign partitions for topic " + topic);
+      LOG.info("Current partition replica assignment " + currentAssignmentJson);
+      LOG.info("New partition replica assignment " + newAssignmentJson);
+      zkUtils.createPersistentPath(ZkUtils.ReassignPartitionsPath(), newAssignmentJson, zkUtils.DefaultAcls());
     }
 
     private static List<PartitionInfo> getPartitionInfo(ZkUtils zkUtils, String topic) {
@@ -316,7 +348,8 @@ public class MultiClusterTopicManagementService implements Service {
       for (PartitionInfo partitionInfo : partitionInfoList) {
         if (replicationFactor != partitionInfo.replicas().length) {
           String topic = partitionInfoList.get(0).topic();
-          throw new RuntimeException("Partitions of the topic " + topic + " have different replication factor");
+          LOG.warn("Partitions of the topic " + topic + " have different replication factor");
+          return -1;
         }
       }
       return replicationFactor;
