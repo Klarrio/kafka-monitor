@@ -1,5 +1,5 @@
 <!--
-  Copyright 2016 LinkedIn Corp. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
+  Copyright 2020 LinkedIn Corp. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
   file except in compliance with the License. You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,6 +10,7 @@
 
 <!DOCTYPE html>
 <html>
+  
 <head>
   <meta charset="utf-8">
   <title>JS Bin</title>
@@ -186,11 +187,16 @@
   var monitoredMbeans = [
     {name: "kmf.services:type=produce-service,name=*", attribute: "produce-availability-avg"},
     {name: "kmf.services:type=produce-service,name=*", attribute: "records-produced-rate"},
+    {name: "kmf.services:type=produce-service,name=*", attribute: "produce-delay-ms-avg"},
+    {name: "kmf.services:type=produce-service,name=*", attribute: "produce-delay-ms-99th"},
+    {name: "kmf.services:type=produce-service,name=*", attribute: "produce-delay-ms-999th"},
+    {name: "kmf.services:type=produce-service,name=*", attribute: "produce-delay-ms-9999th"},
     {name: "kmf.services:type=consume-service,name=*", attribute: "records-lost-rate"},
     {name: "kmf.services:type=consume-service,name=*", attribute: "records-duplicated-rate"},
     {name: "kmf.services:type=consume-service,name=*", attribute: "records-delay-ms-avg"},
     {name: "kmf.services:type=consume-service,name=*", attribute: "records-delay-ms-99th"},
     {name: "kmf.services:type=consume-service,name=*", attribute: "records-delay-ms-999th"},
+    {name: "kmf.services:type=consume-service,name=*", attribute: "records-delay-ms-9999th"},
     {name: "kmf.services:type=consume-service,name=*", attribute: "records-delay-ms-max"},
   ];
 
@@ -211,3 +217,4 @@
 
 
 </html>
+

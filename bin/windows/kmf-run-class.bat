@@ -10,12 +10,12 @@ REM an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either expre
 setlocal enabledelayedexpansion
 
 IF [%1] EQU [] (
-	echo USAGE: %0 com.linkedin.kmf.KafkaMonitor config/kafka-monitor.properties
+	echo USAGE: %0 com.linkedin.xinfra.monitor.XinfraMonitor config/xinfra-monitor.properties
 	EXIT /B 1
 )
 
 IF [%2] EQU [] (
-	echo USAGE: %0 %1 config/kafka-monitor.properties
+	echo USAGE: %0 %1 config/xinfra-monitor.properties
 	EXIT /B 1
 )
 
@@ -60,7 +60,7 @@ IF ["%LOG_DIR%"] EQU [""] (
 
 rem Log4j settings
 IF ["%KAFKA_LOG4J_OPTS%"] EQU [""] (
-	set KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%BASE_DIR%\config\log4j.properties
+	set KAFKA_LOG4J_OPTS=-Dlog4j.configurationFile=%BASE_DIR%\config\log4j2.properties
 ) ELSE (
   # create logs directory
   IF not exist %LOG_DIR% (
@@ -170,7 +170,7 @@ REM fi
 
 REM Launch mode
 REM if [ "x$DAEMON_MODE" = "xtrue" ]; then
-REM   nohup $JAVA $KAFKA_HEAP_OPTS $KAFKA_JVM_PERFORMANCE_OPTS $KAFKA_GC_LOG_OPTS $KAFKA_JMX_OPTS -cp $CLASSPATH REM $KAFKA_OPTS "$@" > "$CONSOLE_OUTPUT_FILE" 2>&1 < /dev/null &REM 
-REM elseREM 
+REM   nohup $JAVA $KAFKA_HEAP_OPTS $KAFKA_JVM_PERFORMANCE_OPTS $KAFKA_GC_LOG_OPTS $KAFKA_JMX_OPTS -cp $CLASSPATH REM $KAFKA_OPTS "$@" > "$CONSOLE_OUTPUT_FILE" 2>&1 < /dev/null &REM
+REM elseREM
 REM   exec $JAVA $KAFKA_HEAP_OPTS $KAFKA_JVM_PERFORMANCE_OPTS $KAFKA_GC_LOG_OPTS $KAFKA_JMX_OPTS REM $KAFKA_LOG4J_OPTS -cp $CLASSPATH $KAFKA_OPTS "$@"
 REM fi

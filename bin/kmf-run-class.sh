@@ -50,7 +50,7 @@ fi
 
 # Log4j settings
 if [ -z "$KAFKA_LOG4J_OPTS" ]; then
-  KAFKA_LOG4J_OPTS="-Dlog4j.configuration=file:$base_dir/config/log4j.properties"
+  KAFKA_LOG4J_OPTS="-Dlog4j.configurationFile=$base_dir/config/log4j2.properties"
 fi
 
 KAFKA_LOG4J_OPTS="-Dkafka.logs.dir=$LOG_DIR $KAFKA_LOG4J_OPTS"
@@ -74,7 +74,7 @@ fi
 
 # JVM performance options
 if [ -z "$KAFKA_JVM_PERFORMANCE_OPTS" ]; then
-  KAFKA_JVM_PERFORMANCE_OPTS="-server -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+CMSScavengeBeforeRemark -XX:+DisableExplicitGC -Djava.awt.headless=true"
+  KAFKA_JVM_PERFORMANCE_OPTS="-server -Djava.awt.headless=true"
 fi
 
 
