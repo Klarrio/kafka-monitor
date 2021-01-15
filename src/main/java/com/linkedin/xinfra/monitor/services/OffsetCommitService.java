@@ -107,14 +107,14 @@ public class OffsetCommitService implements Service {
     List<String> bootstrapServers = config.getList(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG);
     List<InetSocketAddress> addresses =
         ClientUtils.parseAndValidateAddresses(bootstrapServers, ClientDnsLookup.DEFAULT);
-    ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config, _time);
+    ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config, _time, logContext);
 
     LOGGER.info("Bootstrap servers config: {} | broker addresses: {}", bootstrapServers, addresses);
 
     Metadata metadata = new Metadata(retryBackoffMs, config.getLong(ConsumerConfig.METADATA_MAX_AGE_CONFIG), logContext,
         new ClusterResourceListeners());
 
-    metadata.bootstrap(addresses, _time.milliseconds());
+    metadata.bootstrap(addresses);
 
     Selector selector =
         new Selector(config.getLong(ConsumerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG), new Metrics(), _time,
