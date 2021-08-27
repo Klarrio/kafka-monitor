@@ -1,2 +1,7 @@
-
+preRelease {
+    startingVersion = '2.5.5-1.0.0'
+    bump = {
+        "2.5.5-1.0.${((it - ~/^2\.5\.5-1\.0\./) as int) + 1}"
+    }
+}
 /* This is used by vivin:gradle-semantic-build-versioning plugin to generate versioned jar files. */
