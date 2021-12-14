@@ -9,7 +9,8 @@ buildscript {
   }
 }
 
-apply plugin: 'net.vivin.gradle-semantic-build-versioning'
+//klarrio: disable the semantic-versioning plugin, since it works based on a versioning/tagging strategy that doesn't align with how we use it.
+//apply plugin: 'net.vivin.gradle-semantic-build-versioning'
 
 // otherwise it defaults to the folder name
 rootProject.name = 'kafka-monitor'
