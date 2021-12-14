@@ -19,6 +19,14 @@
 #   "dockerFile": "docker/Dockerfile",
 #   "mainBranch": "master"
 # }
+#
+# The release process will:
+#   1. validate: ensure a clean and standard build environment
+#   2. build: the binary required for the Docker image
+#   3. containerize: the Docker image
+#   4. push image: to the remote Docker repository
+#   5. tag release: in git using a versioned tag
+#   6. update version file: with the next version
 
 set -e
 
