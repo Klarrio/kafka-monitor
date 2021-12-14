@@ -2,8 +2,8 @@
 
 # Expects a 'klarrio-build.json' file to be present in the repository, with the following content:
 #  - dockerRepository: Docker image repository
-#  - version.upstream: version of the upstream (open source) project
-#  - version.klarrio: our own semver-based versioning scheme
+#  - version.upstream: version of the upstream (open source) project (can be updated manually)
+#  - version.klarrio: our own semver-based versioning scheme (should not be updated manually, handled by the release process)
 #  - buildCommand: command to build the binary that should be included in the Docker image. In this command you have access to the BUILD_VERSION and BUILD_DOCKER_TAG variables.
 #  - dockerFile: location of the Dockerfile relative to the project directory. Defaults to the Dockerfile in the project directory.
 #  - mainBranch: name of the main branch in the git repository. Release builds will be only allowed to be run on this branch. Defaults to the branch with name "master".
@@ -27,6 +27,11 @@
 #   4. push image: to the remote Docker repository
 #   5. tag release: in git using a versioned tag
 #   6. update version file: with the next version
+#
+# The snapshot process will:
+#   1. build: a binary required for the Docker image (unless the -p option is used)
+#   2. push image: to the remote Docker repository with a '-SNAPSHOT' version (unless the -b option is used)
+
 
 set -e
 
