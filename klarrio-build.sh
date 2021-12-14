@@ -142,7 +142,7 @@ next_version() {
 
 git_current_branch() {
     echo "git_current_branch $*" >&2
-    git branch | grep '^\*' | awk '{ print $1 }'
+    git branch | grep '^\*' | awk '{ print $2 }'
 }
 
 git_behind_branch() {
