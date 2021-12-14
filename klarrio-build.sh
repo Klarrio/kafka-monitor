@@ -6,6 +6,7 @@
 #  - version.klarrio: our own semver-based versioning scheme
 #  - buildCommand: command to build the binary that should be included in the Docker image. In this command you have access to the BUILD_VERSION and BUILD_DOCKER_TAG variables.
 #  - dockerFile: location of the Dockerfile relative to the project directory. Defaults to the Dockerfile in the project directory.
+#  - mainBranch: name of the main branch in the git repository. Release builds will be only allowed to be run on this branch. Defaults to the branch with name "master".
 #
 # Example:
 # {
@@ -15,7 +16,8 @@
 #     "klarrio": "x.x.x"
 #   },
 #   "buildCommand": "rm -rf build; ./gradlew jar",
-#   "dockerFile": "docker/Dockerfile"
+#   "dockerFile": "docker/Dockerfile",
+#   "mainBranch": "master"
 # }
 
 set -e
@@ -257,6 +259,11 @@ parse_project_manifest() {
     if [ "$DOCKERFILE" == "null" ] ; then
         DOCKERFILE='Dockerfile'
     fi
+
+    MAINBRANCH=$(project_get_value mainBranch)
+    if [ "$MAINBRANCH" == "null" ] ; then
+        MAINBRANCH='master'
+    fi
 }
 
 parse_project_manifest
@@ -275,14 +282,14 @@ fi
 
 general_release_sanity_checks() {
     branch=$(git_current_branch)
-    if [ "$branch" != "master" ] ; then
-        bail "You can only release from the repository's master branch!"
+    if [ "$branch" != $MAINBRANCH ] ; then
+        bail "You can only release from the repository's ${MAINBRANCH} branch!"
     fi
-    if [ "0" != `git_behind_branch master` ] ; then
-        bail "Your master branch is behind origin/master. Cannot release."
+    if [ "0" != `git_behind_branch $MAINBRANCH` ] ; then
+        bail "Your ${MAINBRANCH} branch is behind origin/${MAINBRANCH}. Cannot release."
     fi
-    if [ "0" != `git_ahead_branch master` ] ; then
-        bail "Your master branch is ahead of origin/master. Cannot release."
+    if [ "0" != `git_ahead_branch $MAINBRANCH` ] ; then
+        bail "Your ${MAINBRANCH} branch is ahead of origin/${MAINBRANCH}. Cannot release."
     fi
     if ! git_is_committed ; then
         bail "You have uncommitted changes. Cannot release."
@@ -299,7 +306,7 @@ if [ "$MODE" == "release" ] ; then
 
     info You are about to RELEASE version $VERSION of this project.
     info As a result, the version number in klarrio-build.json will be incremented to `${UPSTREAM_VERSION}-(next_version KLARRIO_VERSION revision)`.
-    info This change will be pushed straight to origin/master.
+    info This change will be pushed straight to origin/$MAINBRANCH.
     info 'Are you sure? (y/n)'
     read -n 1 -t 10 decision
     if [ "$decision" != "y" ] ; then 
