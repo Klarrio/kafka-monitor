@@ -141,7 +141,6 @@ next_version() {
 }
 
 git_current_branch() {
-    echo "git_current_branch $*" >&2
     git branch | grep '^\*' | awk '{ print $2 }'
 }
 
@@ -267,11 +266,10 @@ parse_project_manifest() {
 }
 
 parse_project_manifest
-if [ $UPSTEP == "revision" ] ; then
-    VERSION="${UPSTREAM_VERSION}-${KLARRIO_VERSION}"
-else
-    VERSION="${UPSTREAM_VERSION}-$(next_version $KLARRIO_VERSION $UPSTEP)"
+if [ $UPSTEP != "revision" ] ; then
+    KLARRIO_VERSION=$(next_version $KLARRIO_VERSION $UPSTEP)
 fi
+VERSION="${UPSTREAM_VERSION}-$KLARRIO_VERSION"
 DOCKER_TAG="${DOCKER_REPO}:${VERSION}${SUFFIX}"
 
 # argument sanity checks {{{
@@ -305,7 +303,7 @@ if [ "$MODE" == "release" ] ; then
     general_release_sanity_checks
 
     info You are about to RELEASE version $VERSION of this project.
-    info As a result, the version number in klarrio-build.json will be incremented to `${UPSTREAM_VERSION}-(next_version KLARRIO_VERSION revision)`.
+    info As a result, the version number in klarrio-build.json will be incremented to ${UPSTREAM_VERSION}-$(next_version $KLARRIO_VERSION revision).
     info This change will be pushed straight to origin/$MAINBRANCH.
     info 'Are you sure? (y/n)'
     read -n 1 -t 10 decision
@@ -342,7 +340,7 @@ tag_release() {
 
 # update the version tag in klarrio-build.json
 update_version_file() {
-    local new_version="${UPSTREAM_VERSION}-$(next_version $KLARRIO_VERSION revision)"
+    local new_version="$(next_version $KLARRIO_VERSION revision)"
     local tmpfile=$(mktemp)
     cat "klarrio-build.json" | jq ".version.klarrio = \"${new_version}\"" > $tmpfile
     mv $tmpfile "klarrio-build.json"
