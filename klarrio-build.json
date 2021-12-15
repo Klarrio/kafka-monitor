@@ -1,0 +1,10 @@
+{
+  "_README_": "Use the accompanying klarrio-build.sh script to create both snapshots and releases. DO NOT update the klarrio version manually, as this is automatically handled by the release process. You can update the upstream version manually.",
+  "dockerRepository": "registry.cp.kpn-dsh.com/opensource/kafka-monitor",
+  "version": {
+  	"upstream": "2.5.10",
+  	"klarrio": "1.0.2"
+  },
+  "buildCommand": "./gradlew clean jar",
+  "dockerFile": "docker/Dockerfile"
+}
