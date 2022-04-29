@@ -37,7 +37,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.Encoder;
-import org.apache.avro.io.JsonEncoder;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.ListPartitionReassignmentsResult;
@@ -240,7 +240,7 @@ public class Utils {
     GenericDatumWriter<GenericRecord> writer = new GenericDatumWriter<>(DefaultTopicSchema.MESSAGE_V0);
 
     try {
-      Encoder encoder = new JsonEncoder(DefaultTopicSchema.MESSAGE_V0, out);
+      Encoder encoder = EncoderFactory.get().jsonEncoder(DefaultTopicSchema.MESSAGE_V0, out);
       writer.write(record, encoder);
       encoder.flush();
     } catch (IOException e) {

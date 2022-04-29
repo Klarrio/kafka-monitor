@@ -11,9 +11,11 @@
 # limitations under the License.
 
 
-FROM anapsix/alpine-java
+FROM azul/zulu-openjdk-alpine:8-jre
 
 MAINTAINER coffeepac@gmail.com
+
+RUN apk add --no-cache bash
 
 WORKDIR /opt/kafka-monitor
 ADD build/ build/
