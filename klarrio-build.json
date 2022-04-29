@@ -3,7 +3,7 @@
   "dockerRepository": "registry.cp.kpn-dsh.com/opensource/kafka-monitor",
   "version": {
     "upstream": "2.5.10",
-    "klarrio": "1.0.4"
+    "klarrio": "1.1.1"
   },
   "buildCommand": "./gradlew clean jar",
   "dockerFile": "docker/Dockerfile"
