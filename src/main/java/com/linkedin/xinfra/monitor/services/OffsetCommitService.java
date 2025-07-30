@@ -104,10 +104,13 @@ public class OffsetCommitService implements Service {
     int heartbeatIntervalMs = config.getInt(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG);
 
     String clientId = config.getString(ConsumerConfig.CLIENT_ID_CONFIG);
-    LogContext logContext = new LogContext("[Consumer clientId=" + clientId + "] ");
+
     List<String> bootstrapServers = config.getList(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG);
     List<InetSocketAddress> addresses =
         ClientUtils.parseAndValidateAddresses(bootstrapServers, ClientDnsLookup.DEFAULT);
+
+    LogContext logContext = new LogContext("[Consumer clientId=" + clientId + "] ");
+
     ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config, _time, logContext);
 
     LOGGER.info("Bootstrap servers config: {} | broker addresses: {}", bootstrapServers, addresses);
@@ -121,7 +124,8 @@ public class OffsetCommitService implements Service {
         new Selector(config.getLong(ConsumerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG), new Metrics(), _time,
             METRIC_GRP_PREFIX, channelBuilder, logContext);
 
-    KafkaClient kafkaClient = new NetworkClient(selector, metadata, clientId, MAX_INFLIGHT_REQUESTS_PER_CONNECTION,
+    KafkaClient kafkaClient = new NetworkClient(
+        selector, metadata, clientId, MAX_INFLIGHT_REQUESTS_PER_CONNECTION,
         config.getLong(ConsumerConfig.RECONNECT_BACKOFF_MS_CONFIG),
         config.getLong(ConsumerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG),
         config.getInt(ConsumerConfig.SEND_BUFFER_CONFIG), config.getInt(ConsumerConfig.RECEIVE_BUFFER_CONFIG),
@@ -130,6 +134,7 @@ public class OffsetCommitService implements Service {
         config.getLong(ConsumerConfig.SOCKET_CONNECTION_SETUP_TIMEOUT_MAX_MS_CONFIG),
             ClientDnsLookup.DEFAULT, _time, true,
         new ApiVersions(), logContext);
+
 
     LOGGER.debug("The network client active: {}", kafkaClient.active());
     LOGGER.debug("The network client has in flight requests: {}", kafkaClient.hasInFlightRequests());

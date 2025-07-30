@@ -1,16 +1,7 @@
 
 def configDocDir = "${buildDir}/configDocs"
 
-buildscript {
-  repositories {
-    jcenter()
-  }
-  dependencies {
-    classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4"
-  }
-}
 apply plugin: 'maven-publish'
-apply plugin: 'com.jfrog.bintray'
 apply plugin: 'distribution'
 
 
@@ -27,6 +18,9 @@ allprojects {
 
   repositories {
     mavenCentral()
+    maven {
+      url  "https://linkedin.jfrog.io/artifactory/avro-util/"
+    }
   }
 
   dependencies {
@@ -40,9 +34,11 @@ allprojects {
     compile 'com.signalfx.public:signalfx-codahale:1.0.17'
     compile 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.13.2'
     compile 'io.netty:netty-handler:4.1.76.Final'
+    compile group: 'org.apache.kafka', name: 'kafka_2.12', version: '2.8.2'
+    compile group: 'org.apache.kafka', name: 'kafka-clients', version: '2.8.2'
     compile 'org.apache.commons:commons-lang3:3.12.0'
-    compile group: 'org.apache.kafka', name: 'kafka_2.12', version: '2.7.1'
-    compile group: 'org.apache.kafka', name: 'kafka-clients', version: '2.7.1'
+    compile 'com.linkedin.avroutil1:helper-all:0.2.118'
+    compile 'org.apache.zookeeper:zookeeper:3.8.0'
     testCompile 'org.mockito:mockito-core:2.24.0'
     testCompile 'org.testng:testng:6.8.8'
   }
@@ -119,6 +115,20 @@ allprojects {
             url = 'https://github.com/linkedin/kafka-monitor'
           }
         }
+
+        repositories {
+          mavenLocal()
+          maven {
+            name "LinkedInJfrog"
+            url "https://linkedin.jfrog.io/artifactory/kafka-monitor"
+            credentials {
+              if (System.getenv('JFROG_USER') != null && System.getenv('JFROG_KEY') != null) {
+                username System.getenv('JFROG_USER')
+                password System.getenv('JFROG_KEY')
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -192,22 +202,6 @@ allprojects {
 
 }
 
-bintray {
-  user = System.getenv('BINTRAY_USER')
-  key = System.getenv('BINTRAY_KEY')
-  publications = ['MyPublication']
-  pkg {
-    repo = 'maven'
-    name = 'kafka-monitor'
-    userOrg = 'linkedin'
-    licenses = ['Apache-2.0'] // this is validated by bintray and must be a valid license
-    vcsUrl = 'https://github.com/linkedin/kafka-monitor.git'
-    version {
-      name = project.version
-    }
-    publish = true
-  }
-}
 wrapper {
   gradleVersion = '5.2.1'
   distributionType = Wrapper.DistributionType.ALL
